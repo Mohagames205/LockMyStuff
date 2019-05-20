@@ -1,0 +1,30 @@
+name: LockMyStuff
+main: mohagames\lockmystuff\Main
+version: 0.0.1
+api: 3.6.2
+author: Mohagames205
+description: guns
+website: https://github.com/Mohagames205/guns
+
+commands:
+  lock:
+    description: Vergrendeld de deur
+    permission: lms.lock
+  unlock:
+    description: Unlock een deur
+    permission: lms.unlock
+  makekey:
+    description: Maak een sleutel
+    permissions: lms.makekey
+
+
+  permissions:
+    lms.lock:
+      description: "Allows the user to run the example command"
+      default: OP
+    lms.unlock:
+      description: Deur unlocken
+      default: OP
+    lms.makekey:
+      description: Allows you to create a key
+      default: OP

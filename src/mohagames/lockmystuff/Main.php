@@ -1,0 +1,307 @@
+<?php
+
+namespace mohagames\lockmystuff;
+
+use pocketmine\event\block\BlockBreakEvent;
+use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\utils\TextFormat;
+use pocketmine\Server;
+use pocketmine\Player;
+use pocketmine\plugin\PluginBase;
+use pocketmine\command\Command;
+use pocketmine\command\CommandSender;
+use pocketmine\event\Listener;
+use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\item\ItemIds;
+use pocketmine\utils\Config;
+use pocketmine\item\Bow;
+use pocketmine\block\Block;
+use pocketmine\level\Level;
+use pocketmine\entity\Entity;
+use pocketmine\item\Item;
+use pocketmine\item\ItemFactory;
+
+class Main extends PluginBase implements Listener
+{
+    private $Items = array(ItemIds::IRON_DOOR, ItemIds::CHEST, ItemIds::IRON_TRAPDOOR);
+    private $LockSession = array();
+    private $path;
+    private $unlockSession = array();
+
+    public function onLoad(): void
+    {
+        $this->getLogger()->info(TextFormat::WHITE . "I've been loaded!");
+    }
+
+    public function onEnable(): void
+    {
+        $this->path = $this->getDataFolder() . "doors.json";;
+        $lockedYml = new Config($this->getDataFolder() . "doors.json", Config::JSON, array());
+        $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        $this->getLogger()->info(TextFormat::DARK_GREEN . "LockMyStuff is ready to lock your stuff!");
+    }
+
+    /**
+     * @param CommandSender $sender
+     * @param Command $command
+     * @param string $label
+     * @param array $args
+     * @return bool
+     */
+    public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool
+    {
+        switch ($command->getName()) {
+            case "lock":
+                if (isset($args[0])) {
+                    $this->LockSession[$sender->getName()] = $args[0];
+                    $sender->sendMessage("§cGelieve nu de deur die je wilt vergrendelen aan te raken.");
+                } else {
+                    $sender->sendMessage("U moet een naam van de deur opgeven ". $command->getUsage());
+
+                }
+
+                return true;
+
+            case "unlock":
+                if(isset($args[0])){
+                    $this->unlock($args[0]);
+                    $sender->sendMessage("§aDe vergredenling is opgeheven!");
+                }
+                else{
+                    $this->unlockSession[$sender->getName()] = true;
+                    $sender->sendMessage("§aGelieve nu het item die je wilt ontgrendelen aan te raken");
+
+                }
+                return true;
+
+            case "makekey":
+                if (isset($args[0])) {
+                    $item = ItemFactory::get(ItemIds::TRIPWIRE_HOOK);
+                    $item->clearCustomName();
+                    $item->setCustomName($args[0]);
+                    $sender->getInventory()->setItemInHand($item);
+                } else {
+                    $sender->sendMessage("§4Gelieve de naam van de §ckey§4 op te geven");
+                }
+                return true;
+            default:
+                return false;
+        }
+    }
+
+
+    public function wirehook(BlockPlaceEvent $event){
+        if($event->getBlock()->getItemId() == ItemIds::TRIPWIRE_HOOK){
+            $event->setCancelled();
+        }
+    }
+
+    /**
+     * @param PlayerInteractEvent $event
+     */
+    public function aanraking(PlayerInteractEvent $event){
+        $player = $event->getPlayer();
+        if (in_array($event->getBlock()->getItemId(), $this->Items)){
+            if ($event->getItem()->getId() == ItemIds::AIR AND isset($this->LockSession[$player->getName()])){
+                //sleutel in inventory plaatsen
+                if($this->isLocked($event) === false){
+                    $item = ItemFactory::get(ItemIds::TRIPWIRE_HOOK);
+                    $item->clearCustomName();
+                    $item->setCustomName($this->LockSession[$player->getName()]);
+                    $player->getInventory()->setItemInHand($item);
+                    $player->sendPopup("§dU hebt de key ontvangen!");
+                    //deur blijft closed
+                    $event->setCancelled();
+                    $player->sendMessage("§aDe deur is succesvol vergrendeld!");
+                    $this->lock($event);
+                }
+                else{
+                    $event->setCancelled();
+                    unset($this->LockSession[$player->getName()]);
+                    $player->sendMessage("§cDeze deur is al vergrendeld!");
+                }
+
+            }
+            else{
+                $key_name = $event->getItem()->getCustomName();
+                    if($this->isLocked($event, $key_name)){
+                        $event->setCancelled();
+                    }
+
+            }
+        }
+    }
+
+
+    public function unlockTouch(PlayerInteractEvent $event){
+        $player = $event->getPlayer();
+        if(isset($this->unlockSession[$player->getName()])){
+            if($this->unlockSession[$player->getName()]){
+                $event->setCancelled();
+                $x = $event->getBlock()->getX();
+                $y = $event->getBlock()->getY();
+                $z = $event->getBlock()->getZ();
+                $json_file = (array) json_decode(file_get_contents($this->path, true));
+                $index = 0;
+                foreach ($json_file as $value) {
+                    $x_j = $value->coords->x;
+                    $y_j = $value->coords->y;
+                    $z_j = $value->coords->z;
+
+                    if ($x == $x_j && $z == $z_j) {
+                        if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
+                            break;
+                        }
+                    }
+                    $index += 1;
+                }
+
+                unset($json_file[$index]);
+                $json_file = array_values($json_file);
+                $new_json = json_encode($json_file, JSON_PRETTY_PRINT);
+                file_put_contents($this->path, $new_json);
+                $player->sendMessage("§aDe vergrendeling is opgeheven!");
+                unset($this->unlockSession[$player->getName()]);
+            }
+        }
+    }
+
+    public function breken(BlockBreakEvent $event){
+        if(in_array($event->getBlock()->getItemId(), $this->Items)){
+            if($this->isLocked($event)){
+                $x = $event->getBlock()->getX();
+                $y = $event->getBlock()->getY();
+                $z = $event->getBlock()->getZ();
+                $locked_name = $this->getLocked($x, $y, $z);
+                $this->unlock($locked_name);
+                $event->getPlayer()->sendMessage("§aDe vergrendeling is opgeheven!");
+            }
+
+        }
+
+    }
+
+    /**
+     * @param $x
+     * @param $y
+     * @param $z
+     * @return mixed
+     */
+    public function getLocked($x, $y, $z){
+        $json_file = (array) json_decode(file_get_contents($this->path, true));
+        foreach ($json_file as $value) {
+            $x_j = $value->coords->x;
+            $y_j = $value->coords->y;
+            $z_j = $value->coords->z;
+            $check = false;
+
+            if ($x == $x_j && $z == $z_j) {
+                if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
+                    return $value->key_name;
+                    break;
+                }
+            }
+        }
+    }
+
+
+    public function unlock($name){
+        $json_file = (array) json_decode(file_get_contents($this->path, true));
+        $index = 0;
+        foreach($json_file as $value){
+            $lock_naam = $value->key_name;
+            if($lock_naam == $name){
+                break;
+            }
+            $index++;
+        }
+        unset($json_file[$index]);
+        $json_file = array_values($json_file);
+        $new_json = json_encode($json_file, JSON_PRETTY_PRINT);
+        file_put_contents($this->path, $new_json);
+    }
+
+
+    /**
+     * @param $event
+     * @param $key_name
+     * @return array|bool
+     */
+    public function isLocked($event, $key_name = null){
+        $item_x = $event->getBlock()->getX();
+        $item_y = $event->getBlock()->getY();
+        $item_z = $event->getBlock()->getZ();
+
+        $json_file = json_decode(file_get_contents($this->path, true));
+
+        $check = array();
+        if($this->isJSONempty($this->path) === true){
+            $check = false;
+        }
+        else{
+            foreach ($json_file as $value) {
+                $x = $value->coords->x;
+                $y = $value->coords->y;
+                $z = $value->coords->z;
+                $check = false;
+
+                if ($item_x == $x && $item_z == $z) {
+                    if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
+                        if (isset($value->key_name)) {
+                            if($key_name != $value->key_name){
+                                $check = true;
+                                break;
+                            }
+                        }
+                        else{
+                            $check = true;
+                        }
+
+
+                    }
+
+
+                }
+            }
+        }
+
+        return $check;
+    }
+
+    public function lock($event){
+        $player = $event->getPlayer();
+        $item_x = $event->getBlock()->getX();
+        $item_y = $event->getBlock()->getY();
+        $item_z = $event->getBlock()->getZ();
+        if(!$this->isLocked($event)){
+            $position = array(array("key_name" => $this->LockSession[$player->getName()], "coords" => array("x" => $item_x, "y" => $item_y, "z" => $item_z)));
+            if ($this->isJSONempty($this->path) === false) {
+                $old_json = (array)json_decode(file_get_contents($this->path, true));
+                $position_js = array_merge($old_json, $position);
+                $new_json = json_encode($position_js, JSON_PRETTY_PRINT);
+                file_put_contents($this->path, $new_json);
+            }
+            else {
+                $position_json = json_encode($position, JSON_PRETTY_PRINT);
+                file_put_contents($this->path, $position_json);
+            }
+            unset($this->LockSession[$player->getName()]);
+        }
+    }
+
+    /**
+     * @param $path
+     * @return bool
+     */
+    public function isJSONempty($path) : bool{
+        if (json_decode(file_get_contents($path, true)) === null || file_get_contents($path, true) == "[]") {
+            return true;
+    }
+        else{
+        return false;
+        }
+    }
+}
+
+
+
