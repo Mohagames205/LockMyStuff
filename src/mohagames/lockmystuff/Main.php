@@ -126,6 +126,8 @@ class Main extends PluginBase implements Listener
                 $key_name = $event->getItem()->getCustomName();
                     if($this->isLocked($event, $key_name)){
                         $event->setCancelled();
+                        $locked_name = $this->getLocked($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ());
+                        $player->sendPopup("§4De deur §c$locked_name §4is vergrendeld.");
                     }
 
             }
