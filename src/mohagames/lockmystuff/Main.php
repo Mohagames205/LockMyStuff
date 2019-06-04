@@ -19,19 +19,21 @@ use pocketmine\level\Level;
 use pocketmine\entity\Entity;
 use pocketmine\item\Item;
 use pocketmine\item\ItemFactory;
+use SQLite3;
+
 
 class Main extends PluginBase implements Listener
 {
     private $Items = array(ItemIds::IRON_DOOR, ItemIds::CHEST, ItemIds::IRON_TRAPDOOR);
     private $LockSession = array();
-    private $path;
+    private $handle;
     private $unlockSession = array();
 
 
     public function onEnable(): void
     {
-        $this->path = $this->getDataFolder() . "doors.json";
-        $lockedJSON = new Config($this->getDataFolder() . "doors.json", Config::JSON, array());
+        $this->handle = new SQLite3($this->getDataFolder() . "doors.db");
+        $this->handle->query("CREATE TABLE IF NOT EXISTS doors(door_id INTEGER PRIMARY KEY AUTOINCREMENT,door_name TEXT,location TEXT, world TEXT)");
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
     }
 
@@ -83,6 +85,9 @@ class Main extends PluginBase implements Listener
                     return false;
             }
         }
+        else{
+            $this->getLogger()->info("Please execute this command ingame");
+        }
 
     }
 
@@ -126,10 +131,9 @@ class Main extends PluginBase implements Listener
                 $key_name = $event->getItem()->getCustomName();
                 if($this->isLocked($event, $key_name)){
                     $event->setCancelled();
-                    $locked_name = $this->getLocked($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ(), $event->getPlayer()->getLevel()->getName());
+                    $locked_name = $this->getLockedName($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ(), $event->getPlayer()->getLevel()->getName());
                     $player->sendPopup("§4The door §c$locked_name §4is locked.");
                 }
-
             }
         }
     }
@@ -146,26 +150,11 @@ class Main extends PluginBase implements Listener
                 $x = $event->getBlock()->getX();
                 $y = $event->getBlock()->getY();
                 $z = $event->getBlock()->getZ();
-                $json_file = (array) json_decode(file_get_contents($this->path, true));
-                $index = 0;
-                foreach ($json_file as $value) {
-                    $x_j = $value->coords->x;
-                    $y_j = $value->coords->y;
-                    $z_j = $value->coords->z;
-                    if($player->getLevel()->getName() == $value->world){
-                        if ($x == $x_j && $z == $z_j) {
-                            if (abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
-                                break;
-                            }
-                        }
-                    }
-                    $index += 1;
-                }
-
-                unset($json_file[$index]);
-                $json_file = array_values($json_file);
-                $new_json = json_encode($json_file, JSON_PRETTY_PRINT);
-                file_put_contents($this->path, $new_json);
+                $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
+                $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
+                $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
+                $stmt->execute();
+                $stmt->close();
                 $player->sendMessage("§aThe door has been unlocked!");
                 unset($this->unlockSession[$player->getName()]);
             }
@@ -178,8 +167,11 @@ class Main extends PluginBase implements Listener
                 $x = $event->getBlock()->getX();
                 $y = $event->getBlock()->getY();
                 $z = $event->getBlock()->getZ();
-                $locked_name = $this->getLocked($x, $y, $z, $event->getPlayer()->getLevel()->getName());
-                $this->unlock($locked_name);
+                $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
+                $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
+                $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
+                $stmt->execute();
+                $stmt->close();
                 $event->getPlayer()->sendMessage("§aThe door has been unlocked!");
             }
 
@@ -194,24 +186,17 @@ class Main extends PluginBase implements Listener
      * @param $worldname
      * @return mixed
      */
-    public function getLocked($x, $y, $z, $worldname){
-        $json_file = (array) json_decode(file_get_contents($this->path, true));
-        foreach ($json_file as $value) {
-            $x_j = $value->coords->x;
-            $y_j = $value->coords->y;
-            $z_j = $value->coords->z;
-            $check = false;
+    public function getLockedName($x, $y, $z, $worldname){
+        $door_id = $this->getLockedID($x, $y, $z, $worldname);
+        $stmt = $this->handle->prepare("SELECT door_name FROM doors WHERE door_id = :door_id");
+        $stmt->bindParam(":door_id", $door_id, SQLITE3_INTEGER);
+        $result = $stmt->execute();
 
-            if($worldname == $value->world){
-                if ($x == $x_j && $z == $z_j) {
-                    if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
-                        return $value->key_name;
-                        break;
-                    }
-                }
-            }
-
+        while($row = $result->fetchArray()){
+            return $row["door_name"];
+            break;
         }
+        $stmt->close();
     }
 
 
@@ -219,16 +204,10 @@ class Main extends PluginBase implements Listener
      * @param $name
      */
     public function unlock($name){
-        $json_file = (array) json_decode(file_get_contents($this->path, true));
-        $index = 0;
-        foreach($json_file as $value){
-            if($value->key_name == $name){
-                break;
-            }
-            $index++;
-        }
-        unset($json_file[$index]);
-        file_put_contents($this->path, json_encode(array_values($json_file), JSON_PRETTY_PRINT));
+        $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_name = :name");
+        $stmt->bindParam(":name", $name, SQLITE3_TEXT);
+        $stmt->execute();
+        $stmt->close();
     }
 
 
@@ -242,40 +221,31 @@ class Main extends PluginBase implements Listener
         $item_y = $event->getBlock()->getY();
         $item_z = $event->getBlock()->getZ();
 
-        $json_file = json_decode(file_get_contents($this->path, true));
-
-        $check = array();
-        if($this->isJSONempty($this->path) === true){
-            $check = false;
-        }
-        else{
-            foreach ($json_file as $value) {
-                $x = $value->coords->x;
-                $y = $value->coords->y;
-                $z = $value->coords->z;
-                $check = false;
-
-                if($event->getPlayer()->getLevel()->getName() == $value->world){
-                    if ($item_x == $x && $item_z == $z) {
-                        if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
-                            if (isset($value->key_name)) {
-                                if($key_name != $value->key_name){
-                                    $check = true;
-                                    break;
-                                }
-                            }
-                            else{
+        $result = $this->handle->query("SELECT * FROM doors");
+        $check = false;
+        while($row = $result->fetchArray()){
+            $row_loc = $row["location"];
+            $loc_array = explode(",", $row_loc);
+            $x = (int) $loc_array[0];
+            $y = (int) $loc_array[1];
+            $z = (int) $loc_array[2];
+            if($event->getPlayer()->getLevel()->getName() == $row["world"]){
+                if ($item_x == $x && $item_z == $z) {
+                    if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
+                            if($key_name != $row["door_name"]){
                                 $check = true;
+                                break;
                             }
-                        }
                     }
                 }
-
             }
         }
-
         return $check;
     }
+
+
+
+
 
     /**
      * @param $event
@@ -286,29 +256,47 @@ class Main extends PluginBase implements Listener
         $item_y = $event->getBlock()->getY();
         $item_z = $event->getBlock()->getZ();
         if(!$this->isLocked($event)){
-            $position = array(array("key_name" => $this->LockSession[$player->getName()],"world" => $player->getLevel()->getName(), "coords" => array("x" => $item_x, "y" => $item_y, "z" => $item_z)));
-            if ($this->isJSONempty($this->path) === false) {
-                $old_json = (array)json_decode(file_get_contents($this->path, true));
-                file_put_contents($this->path, json_encode(array_merge($old_json, $position), JSON_PRETTY_PRINT));
-            }
-            else {
-                $position_json = json_encode($position, JSON_PRETTY_PRINT);
-                file_put_contents($this->path, $position_json);
-            }
+            $location = "$item_x, $item_y, $item_z";
+            $world = $event->getPlayer()->getLevel()->getName();
+            $door_name = $this->LockSession[$player->getName()];
+            $stmt = $this->handle->prepare("INSERT INTO DOORS (door_name, location, world) VALUES(:door_name, :location, :world)");
+            $stmt->bindParam(":door_name", $door_name, SQLITE3_TEXT);
+            $stmt->bindParam(":location", $location, SQLITE3_TEXT);
+            $stmt->bindParam(":world", $world, SQLITE3_TEXT);
+            $stmt->execute();
+            $stmt->close();
             unset($this->LockSession[$player->getName()]);
         }
     }
 
+
     /**
-     * @param $path
-     * @return bool
+     * @return mixed
      */
-    public function isJSONempty($path) : bool{
-        if (json_decode(file_get_contents($path, true)) === null || file_get_contents($path, true) == "[]") {
-            return true;
-        }
-        else{
-            return false;
+    public function getAllDoors(){
+        $result = $this->handle->query("SELECT * FROM doors");
+        return $result;
+    }
+
+
+    public function getLockedID($x, $y, $z, $worldname){
+        $result = $this->handle->query("SELECT * FROM doors");
+
+        while($row = $result->fetchArray()) {
+            $row_loc = $row["location"];
+            $loc_array = explode(",", $row_loc);
+            $x_j = (int) $loc_array[0];
+            $y_j = (int) $loc_array[1];
+            $z_j = (int) $loc_array[2];
+
+            if($worldname == $row["world"]){
+                if ($x == $x_j && $z == $z_j) {
+                    if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
+                        return $row["door_id"];
+                        break;
+                    }
+                }
+            }
         }
     }
 }
