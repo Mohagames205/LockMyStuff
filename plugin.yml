@@ -1,6 +1,6 @@
 name: LockMyStuff
 main: mohagames\lockmystuff\Main
-version: 0.1.0
+version: 0.1.1
 api: 3.6.2
 author: Mohagames205
 description: Lock your stuff like never before!
