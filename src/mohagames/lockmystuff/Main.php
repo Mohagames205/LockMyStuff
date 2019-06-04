@@ -14,7 +14,6 @@ use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\item\ItemIds;
 use pocketmine\utils\Config;
-use pocketmine\item\Bow;
 use pocketmine\block\Block;
 use pocketmine\level\Level;
 use pocketmine\entity\Entity;
@@ -35,8 +34,8 @@ class Main extends PluginBase implements Listener
 
     public function onEnable(): void
     {
-        $this->path = $this->getDataFolder() . "doors.json";;
-        $lockedYml = new Config($this->getDataFolder() . "doors.json", Config::JSON, array());
+        $this->path = $this->getDataFolder() . "doors.json";
+        $lockedJSON = new Config($this->getDataFolder() . "doors.json", Config::JSON, array());
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->getLogger()->info(TextFormat::DARK_GREEN . "LockMyStuff is ready to lock your stuff!");
     }
@@ -54,9 +53,9 @@ class Main extends PluginBase implements Listener
             case "lock":
                 if (isset($args[0])) {
                     $this->LockSession[$sender->getName()] = $args[0];
-                    $sender->sendMessage("§cGelieve nu de deur die je wilt vergrendelen aan te raken.");
+                    $sender->sendMessage("§cPlease touch the door you want to lock.");
                 } else {
-                    $sender->sendMessage("U moet een naam van de deur opgeven ". $command->getUsage());
+                    $sender->sendMessage("§cMissing door-name! usage: ". $command->getUsage());
 
                 }
 
@@ -65,11 +64,11 @@ class Main extends PluginBase implements Listener
             case "unlock":
                 if(isset($args[0])){
                     $this->unlock($args[0]);
-                    $sender->sendMessage("§aDe vergredenling is opgeheven!");
+                    $sender->sendMessage("§aThe lock has been removed.!");
                 }
                 else{
                     $this->unlockSession[$sender->getName()] = true;
-                    $sender->sendMessage("§aGelieve nu het item die je wilt ontgrendelen aan te raken");
+                    $sender->sendMessage("§aPlease touch the door you want to unlock.");
 
                 }
                 return true;
@@ -81,7 +80,7 @@ class Main extends PluginBase implements Listener
                     $item->setCustomName($args[0]);
                     $sender->getInventory()->setItemInHand($item);
                 } else {
-                    $sender->sendMessage("§4Gelieve de naam van de §ckey§4 op te geven");
+                    $sender->sendMessage("§4Missing argument, please the name of the door that has to be locked. usage: " . $command->getUsage());
                 }
                 return true;
             default:
@@ -102,23 +101,23 @@ class Main extends PluginBase implements Listener
     public function aanraking(PlayerInteractEvent $event){
         $player = $event->getPlayer();
         if (in_array($event->getBlock()->getItemId(), $this->Items)){
-            if ($event->getItem()->getId() == ItemIds::AIR AND isset($this->LockSession[$player->getName()])){
+            if (isset($this->LockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
                 if($this->isLocked($event) === false){
                     $item = ItemFactory::get(ItemIds::TRIPWIRE_HOOK);
                     $item->clearCustomName();
                     $item->setCustomName($this->LockSession[$player->getName()]);
-                    $player->getInventory()->setItemInHand($item);
-                    $player->sendPopup("§dU hebt de key ontvangen!");
+                    $player->getInventory()->addItem($item);
+                    $player->sendPopup("§dYou received the key succesfully! Please check your inventory.");
                     //deur blijft closed
                     $event->setCancelled();
-                    $player->sendMessage("§aDe deur is succesvol vergrendeld!");
+                    $player->sendMessage("§aThe door has been locked succesfully!");
                     $this->lock($event);
                 }
                 else{
                     $event->setCancelled();
                     unset($this->LockSession[$player->getName()]);
-                    $player->sendMessage("§cDeze deur is al vergrendeld!");
+                    $player->sendMessage("§cThis door is already locked!");
                 }
 
             }
@@ -127,7 +126,7 @@ class Main extends PluginBase implements Listener
                     if($this->isLocked($event, $key_name)){
                         $event->setCancelled();
                         $locked_name = $this->getLocked($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ());
-                        $player->sendPopup("§4De deur §c$locked_name §4is vergrendeld.");
+                        $player->sendPopup("§4The door §c$locked_name §4is locked.");
                     }
 
             }
@@ -162,7 +161,7 @@ class Main extends PluginBase implements Listener
                 $json_file = array_values($json_file);
                 $new_json = json_encode($json_file, JSON_PRETTY_PRINT);
                 file_put_contents($this->path, $new_json);
-                $player->sendMessage("§aDe vergrendeling is opgeheven!");
+                $player->sendMessage("§aThe door has been unlocked!");
                 unset($this->unlockSession[$player->getName()]);
             }
         }
@@ -176,7 +175,7 @@ class Main extends PluginBase implements Listener
                 $z = $event->getBlock()->getZ();
                 $locked_name = $this->getLocked($x, $y, $z);
                 $this->unlock($locked_name);
-                $event->getPlayer()->sendMessage("§aDe vergrendeling is opgeheven!");
+                $event->getPlayer()->sendMessage("§aThe door has been unlocked!");
             }
 
         }
