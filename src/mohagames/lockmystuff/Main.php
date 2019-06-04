@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpInconsistentReturnPointsInspection */
 
 namespace mohagames\lockmystuff;
 
@@ -27,17 +27,12 @@ class Main extends PluginBase implements Listener
     private $path;
     private $unlockSession = array();
 
-    public function onLoad(): void
-    {
-        $this->getLogger()->info(TextFormat::WHITE . "I've been loaded!");
-    }
 
     public function onEnable(): void
     {
         $this->path = $this->getDataFolder() . "doors.json";
         $lockedJSON = new Config($this->getDataFolder() . "doors.json", Config::JSON, array());
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
-        $this->getLogger()->info(TextFormat::DARK_GREEN . "LockMyStuff is ready to lock your stuff!");
     }
 
     /**
@@ -49,46 +44,52 @@ class Main extends PluginBase implements Listener
      */
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool
     {
-        switch ($command->getName()) {
-            case "lock":
-                if (isset($args[0])) {
-                    $this->LockSession[$sender->getName()] = $args[0];
-                    $sender->sendMessage("§cPlease touch the door you want to lock.");
-                } else {
-                    $sender->sendMessage("§cMissing door-name! usage: ". $command->getUsage());
+        if($sender instanceof Player){
+            switch ($command->getName()) {
+                case "lock":
+                    if (isset($args[0])) {
+                        $this->LockSession[$sender->getName()] = $args[0];
+                        $sender->sendMessage("§cPlease touch the door you want to lock.");
+                    } else {
+                        $sender->sendMessage("§cMissing door-name! usage: ". $command->getUsage());
 
-                }
+                    }
 
-                return true;
+                    return true;
 
-            case "unlock":
-                if(isset($args[0])){
-                    $this->unlock($args[0]);
-                    $sender->sendMessage("§aThe lock has been removed.!");
-                }
-                else{
-                    $this->unlockSession[$sender->getName()] = true;
-                    $sender->sendMessage("§aPlease touch the door you want to unlock.");
+                case "unlock":
+                    if(isset($args[0])){
+                        $this->unlock($args[0]);
+                        $sender->sendMessage("§aThe lock has been removed.!");
+                    }
+                    else{
+                        $this->unlockSession[$sender->getName()] = true;
+                        $sender->sendMessage("§aPlease touch the door you want to unlock.");
 
-                }
-                return true;
+                    }
+                    return true;
 
-            case "makekey":
-                if (isset($args[0])) {
-                    $item = ItemFactory::get(ItemIds::TRIPWIRE_HOOK);
-                    $item->clearCustomName();
-                    $item->setCustomName($args[0]);
-                    $sender->getInventory()->setItemInHand($item);
-                } else {
-                    $sender->sendMessage("§4Missing argument, please the name of the door that has to be locked. usage: " . $command->getUsage());
-                }
-                return true;
-            default:
-                return false;
+                case "makekey":
+                    if (isset($args[0])) {
+                        $item = ItemFactory::get(ItemIds::TRIPWIRE_HOOK);
+                        $item->clearCustomName();
+                        $item->setCustomName($args[0]);
+                        $sender->getInventory()->setItemInHand($item);
+                    } else {
+                        $sender->sendMessage("§4Missing argument, please the name of the door that has to be locked. usage: " . $command->getUsage());
+                    }
+                    return true;
+                default:
+                    return false;
+            }
         }
+
     }
 
 
+    /**
+     * @param BlockPlaceEvent $event
+     */
     public function wirehook(BlockPlaceEvent $event){
         if($event->getBlock()->getItemId() == ItemIds::TRIPWIRE_HOOK){
             $event->setCancelled();
@@ -123,17 +124,20 @@ class Main extends PluginBase implements Listener
             }
             else{
                 $key_name = $event->getItem()->getCustomName();
-                    if($this->isLocked($event, $key_name)){
-                        $event->setCancelled();
-                        $locked_name = $this->getLocked($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ());
-                        $player->sendPopup("§4The door §c$locked_name §4is locked.");
-                    }
+                if($this->isLocked($event, $key_name)){
+                    $event->setCancelled();
+                    $locked_name = $this->getLocked($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ(), $event->getPlayer()->getLevel()->getName());
+                    $player->sendPopup("§4The door §c$locked_name §4is locked.");
+                }
 
             }
         }
     }
 
 
+    /**
+     * @param PlayerInteractEvent $event
+     */
     public function unlockTouch(PlayerInteractEvent $event){
         $player = $event->getPlayer();
         if(isset($this->unlockSession[$player->getName()])){
@@ -148,10 +152,11 @@ class Main extends PluginBase implements Listener
                     $x_j = $value->coords->x;
                     $y_j = $value->coords->y;
                     $z_j = $value->coords->z;
-
-                    if ($x == $x_j && $z == $z_j) {
-                        if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
-                            break;
+                    if($player->getLevel()->getName() == $value->world){
+                        if ($x == $x_j && $z == $z_j) {
+                            if (abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
+                                break;
+                            }
                         }
                     }
                     $index += 1;
@@ -173,7 +178,7 @@ class Main extends PluginBase implements Listener
                 $x = $event->getBlock()->getX();
                 $y = $event->getBlock()->getY();
                 $z = $event->getBlock()->getZ();
-                $locked_name = $this->getLocked($x, $y, $z);
+                $locked_name = $this->getLocked($x, $y, $z, $event->getPlayer()->getLevel()->getName());
                 $this->unlock($locked_name);
                 $event->getPlayer()->sendMessage("§aThe door has been unlocked!");
             }
@@ -186,9 +191,10 @@ class Main extends PluginBase implements Listener
      * @param $x
      * @param $y
      * @param $z
+     * @param $worldname
      * @return mixed
      */
-    public function getLocked($x, $y, $z){
+    public function getLocked($x, $y, $z, $worldname){
         $json_file = (array) json_decode(file_get_contents($this->path, true));
         foreach ($json_file as $value) {
             $x_j = $value->coords->x;
@@ -196,30 +202,33 @@ class Main extends PluginBase implements Listener
             $z_j = $value->coords->z;
             $check = false;
 
-            if ($x == $x_j && $z == $z_j) {
-                if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
-                    return $value->key_name;
-                    break;
+            if($worldname == $value->world){
+                if ($x == $x_j && $z == $z_j) {
+                    if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
+                        return $value->key_name;
+                        break;
+                    }
                 }
             }
+
         }
     }
 
 
+    /**
+     * @param $name
+     */
     public function unlock($name){
         $json_file = (array) json_decode(file_get_contents($this->path, true));
         $index = 0;
         foreach($json_file as $value){
-            $lock_naam = $value->key_name;
-            if($lock_naam == $name){
+            if($value->key_name == $name){
                 break;
             }
             $index++;
         }
         unset($json_file[$index]);
-        $json_file = array_values($json_file);
-        $new_json = json_encode($json_file, JSON_PRETTY_PRINT);
-        file_put_contents($this->path, $new_json);
+        file_put_contents($this->path, json_encode(array_values($json_file), JSON_PRETTY_PRINT));
     }
 
 
@@ -246,36 +255,38 @@ class Main extends PluginBase implements Listener
                 $z = $value->coords->z;
                 $check = false;
 
-                if ($item_x == $x && $item_z == $z) {
-                    if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
-                        if (isset($value->key_name)) {
-                            if($key_name != $value->key_name){
+                if($event->getPlayer()->getLevel()->getName() == $value->world){
+                    if ($item_x == $x && $item_z == $z) {
+                        if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
+                            if (isset($value->key_name)) {
+                                if($key_name != $value->key_name){
+                                    $check = true;
+                                    break;
+                                }
+                            }
+                            else{
                                 $check = true;
-                                break;
                             }
                         }
-                        else{
-                            $check = true;
-                        }
-
-
                     }
-
-
                 }
+
             }
         }
 
         return $check;
     }
 
+    /**
+     * @param $event
+     */
     public function lock($event){
         $player = $event->getPlayer();
         $item_x = $event->getBlock()->getX();
         $item_y = $event->getBlock()->getY();
         $item_z = $event->getBlock()->getZ();
         if(!$this->isLocked($event)){
-            $position = array(array("key_name" => $this->LockSession[$player->getName()], "coords" => array("x" => $item_x, "y" => $item_y, "z" => $item_z)));
+            $position = array(array("key_name" => $this->LockSession[$player->getName()],"world" => $player->getLevel()->getName(), "coords" => array("x" => $item_x, "y" => $item_y, "z" => $item_z)));
             if ($this->isJSONempty($this->path) === false) {
                 $old_json = (array)json_decode(file_get_contents($this->path, true));
                 $position_js = array_merge($old_json, $position);
@@ -297,9 +308,9 @@ class Main extends PluginBase implements Listener
     public function isJSONempty($path) : bool{
         if (json_decode(file_get_contents($path, true)) === null || file_get_contents($path, true) == "[]") {
             return true;
-    }
+        }
         else{
-        return false;
+            return false;
         }
     }
 }
