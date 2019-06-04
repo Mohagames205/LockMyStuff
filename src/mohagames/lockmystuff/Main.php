@@ -289,9 +289,7 @@ class Main extends PluginBase implements Listener
             $position = array(array("key_name" => $this->LockSession[$player->getName()],"world" => $player->getLevel()->getName(), "coords" => array("x" => $item_x, "y" => $item_y, "z" => $item_z)));
             if ($this->isJSONempty($this->path) === false) {
                 $old_json = (array)json_decode(file_get_contents($this->path, true));
-                $position_js = array_merge($old_json, $position);
-                $new_json = json_encode($position_js, JSON_PRETTY_PRINT);
-                file_put_contents($this->path, $new_json);
+                file_put_contents($this->path, json_encode(array_merge($old_json, $position), JSON_PRETTY_PRINT));
             }
             else {
                 $position_json = json_encode($position, JSON_PRETTY_PRINT);
