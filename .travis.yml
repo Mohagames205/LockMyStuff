@@ -4,5 +4,5 @@ php:
  - 7.2
  - 7.3
  
- before_script:
-  - '! find . -type f -name "*.php" -exec php -d error_reporting=32767 -l {} \; 2>&1 >&- | grep "^"'
+before_script:
+ - '! find . -type f -name "*.php" -exec php -d error_reporting=32767 -l {} \; 2>&1 >&- | grep "^"'
