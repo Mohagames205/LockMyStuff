@@ -164,15 +164,22 @@ class Main extends PluginBase implements Listener
     public function breken(BlockBreakEvent $event){
         if(in_array($event->getBlock()->getItemId(), $this->Items)){
             if($this->isLocked($event)){
-                $x = $event->getBlock()->getX();
-                $y = $event->getBlock()->getY();
-                $z = $event->getBlock()->getZ();
-                $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
-                $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
-                $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
-                $stmt->execute();
-                $stmt->close();
-                $event->getPlayer()->sendMessage("§aThe door has been unlocked!");
+                $key_name = $event->getItem()->getCustomName();
+                if(!$this->isLocked($event, $key_name) || $event->getPlayer()->hasPermission("lms.break")){
+                    $x = $event->getBlock()->getX();
+                    $y = $event->getBlock()->getY();
+                    $z = $event->getBlock()->getZ();
+                    $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
+                    $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
+                    $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
+                    $stmt->execute();
+                    $stmt->close();
+                    $event->getPlayer()->sendMessage("§aThe door has been unlocked!");
+                }
+                else{
+                    $event->setCancelled();
+                    $event->getPlayer()->sendPopup("§4You cannot break this door!");
+                }
             }
 
         }
