@@ -1,6 +1,6 @@
 name: LockMyStuff
 main: mohagames\lockmystuff\Main
-version: 0.1.1
+version: 0.2.1
 api: 3.6.2
 author: Mohagames205
 description: Lock your stuff like never before!
@@ -30,4 +30,7 @@ permissions:
     default: OP
   lms.makekey:
     description: Allows the user to make a key for any door.
+    default: OP
+  lms.break:
+    description: Allows the user to break a locked door.
     default: OP
