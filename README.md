@@ -12,5 +12,5 @@ This plugin let's you lock your trapdoors, doors and chests
 Please open an issue on Github with your suggestion.
 
 ### Need help?
-Send me a message on discord Mohamed🐺#1225 or open an issue on Github.
+Send me a message on discord Mohamed#3853 or open an issue on Github.
 
