@@ -25,11 +25,12 @@ use SQLite3;
 class Main extends PluginBase implements Listener
 {
     private $Items = array(ItemIds::IRON_DOOR, ItemIds::CHEST, ItemIds::IRON_TRAPDOOR);
-    private $LockSession = array();
+    private $lockSession = array();
     private $handle;
     private $unlockSession = array();
     private $config;
     private $itemID;
+    private $infoSession = array();
 
     public function onEnable(): void
     {
@@ -53,10 +54,10 @@ class Main extends PluginBase implements Listener
             switch ($command->getName()) {
                 case "lock":
                     if (isset($args[0])) {
-                        $this->LockSession[$sender->getName()] = $args[0];
-                        $sender->sendMessage("§cPlease touch the door you want to lock.");
+                        $this->lockSession[$sender->getName()] = $args[0];
+                        $sender->sendMessage("§cPlease touch the item you want to lock.");
                     } else {
-                        $sender->sendMessage("§cMissing door-name! usage: ". $command->getUsage());
+                        $sender->sendMessage("§cMissing item-name! usage: ". $command->getUsage());
 
                     }
 
@@ -69,7 +70,7 @@ class Main extends PluginBase implements Listener
                     }
                     else{
                         $this->unlockSession[$sender->getName()] = true;
-                        $sender->sendMessage("§aPlease touch the door you want to unlock.");
+                        $sender->sendMessage("§aPlease touch the item you want to unlock.");
 
                     }
                     return true;
@@ -81,9 +82,15 @@ class Main extends PluginBase implements Listener
                         $item->setCustomName($args[0]);
                         $sender->getInventory()->addItem($item);
                     } else {
-                        $sender->sendMessage("§4Missing argument, please specify the name of the door that has to be locked. usage: " . $command->getUsage());
+                        $sender->sendMessage("§4Missing argument, please specify the name of the item that has to be locked. usage: " . $command->getUsage());
                     }
                     return true;
+
+                case "lockedinfo":
+                    $this->infoSession[$sender->getName()] = true;
+                    $sender->sendMessage("§aPlease touch the item you want to info about.");
+                    return true;
+
                 default:
                     return false;
             }
@@ -110,12 +117,12 @@ class Main extends PluginBase implements Listener
     public function aanraking(PlayerInteractEvent $event){
         $player = $event->getPlayer();
         if (in_array($event->getBlock()->getItemId(), $this->Items)){
-            if (isset($this->LockSession[$player->getName()])){
+            if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
                 if($this->isLocked($event) === false){
                     $item = ItemFactory::get($this->itemID);
                     $item->clearCustomName();
-                    $item->setCustomName($this->LockSession[$player->getName()]);
+                    $item->setCustomName($this->lockSession[$player->getName()]);
                     $player->getInventory()->addItem($item);
                     $player->sendPopup("§dYou received the key succesfully! Please check your inventory.");
                     //deur blijft closed
@@ -125,20 +132,26 @@ class Main extends PluginBase implements Listener
                 }
                 else{
                     $event->setCancelled();
-                    unset($this->LockSession[$player->getName()]);
+                    unset($this->lockSession[$player->getName()]);
                     $player->sendMessage("§cThis door is already locked!");
                 }
 
             }
+            elseif(isset($this->infoSession[$player->getName()])){
+                $x = $event->getBlock()->getX();
+                $y = $event->getBlock()->getY();
+                $z = $event->getBlock()->getZ();
+                $world = $player->getLevel()->getName();
+                $name = $this->getLockedName($x, $y, $z, $world);
+                unset($this->infoSession[$player->getName()]);
+                $event->setCancelled();
+                $event->getPlayer()->sendMessage("§3The name of the locked item is: §b$name");
+            }
             else{
                 $key_name = $event->getItem()->getCustomName();
-                if(!$this->isLocked($event, $key_name) && $event->getItem()->getId() == $this->itemID){
-
-                }
-                else{
+                if($this->isLocked($event, $key_name)){
                     $event->setCancelled();
-                    $locked_name = $this->getLockedName($event->getBlock()->getX(), $event->getBlock()->getY(), $event->getBlock()->getZ(), $event->getPlayer()->getLevel()->getName());
-                    $player->sendPopup("§4The door §c$locked_name §4is locked.");
+                    $player->sendPopup("§4The door is locked.");
                 }
             }
         }
@@ -248,7 +261,7 @@ class Main extends PluginBase implements Listener
             if($event->getPlayer()->getLevel()->getName() == $row["world"]){
                 if ($item_x == $x && $item_z == $z) {
                     if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
-                            if($key_name != $row["door_name"]){
+                            if($key_name != $row["door_name"] || $event->getItem()->getId() != $this->itemID){
                                 $check = true;
                                 break;
                             }
@@ -274,14 +287,14 @@ class Main extends PluginBase implements Listener
         if(!$this->isLocked($event)){
             $location = "$item_x, $item_y, $item_z";
             $world = $event->getPlayer()->getLevel()->getName();
-            $door_name = $this->LockSession[$player->getName()];
+            $door_name = $this->lockSession[$player->getName()];
             $stmt = $this->handle->prepare("INSERT INTO DOORS (door_name, location, world) VALUES(:door_name, :location, :world)");
             $stmt->bindParam(":door_name", $door_name, SQLITE3_TEXT);
             $stmt->bindParam(":location", $location, SQLITE3_TEXT);
             $stmt->bindParam(":world", $world, SQLITE3_TEXT);
             $stmt->execute();
             $stmt->close();
-            unset($this->LockSession[$player->getName()]);
+            unset($this->lockSession[$player->getName()]);
         }
     }
 
