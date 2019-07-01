@@ -88,7 +88,7 @@ class Main extends PluginBase implements Listener
 
                 case "lockedinfo":
                     $this->infoSession[$sender->getName()] = true;
-                    $sender->sendMessage("§aPlease touch the item you want to info about.");
+                    $sender->sendMessage("§aPlease touch the item you want info about.");
                     return true;
 
                 default:
