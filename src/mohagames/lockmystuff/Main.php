@@ -1,5 +1,12 @@
 <?php
 
+/*
+Author: Mohamed
+Discord: Mohamed#1000
+
+It is not allowed to remove this reference. Please read the LICENSE.
+*/
+
 namespace mohagames\lockmystuff;
 
 use pocketmine\event\block\BlockBreakEvent;
