@@ -19,6 +19,7 @@ use pocketmine\level\Level;
 use pocketmine\entity\Entity;
 use pocketmine\item\Item;
 use pocketmine\item\ItemFactory;
+use spoondetector\SpoonDetector;
 use SQLite3;
 
 
@@ -34,6 +35,7 @@ class Main extends PluginBase implements Listener
 
     public function onEnable(): void
     {
+        SpoonDetector::printSpoon($this, 'spoon.txt');
         $this->config = new Config($this->getDataFolder() . "config.yml", Config::YAML, array("key-item" => ItemIds::TRIPWIRE_HOOK));
         $this->itemID = $this->config->get("key-item");
         $this->handle = new SQLite3($this->getDataFolder() . "doors.db");
