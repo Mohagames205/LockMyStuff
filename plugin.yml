@@ -22,15 +22,17 @@ commands:
 
 
 permissions:
-  lms.lock:
-    description: Allows the user to lock a door.
-    default: OP
-  lms.unlock:
-    description: Allows the user to use the /unlock command.
-    default: OP
-  lms.makekey:
-    description: Allows the user to make a key for any door.
-    default: OP
-  lms.break:
-    description: Allows the user to break a locked door.
-    default: OP
+  lms:
+    children:
+      lms.lock:
+        description: Allows the user to lock a door.
+        default: OP
+      lms.unlock:
+        description: Allows the user to use the /unlock command.
+        default: OP
+      lms.makekey:
+        description: Allows the user to make a key for any door.
+        default: OP
+      lms.break:
+        description: Allows the user to break a locked door.
+        default: OP
