@@ -2,7 +2,7 @@
 
 /*
 Author: Mohamed
-Discord: Mohamed#1000
+Discord: Mohamed#0710
 
 It is not allowed to remove this reference. Please read the LICENSE.
 */
@@ -109,23 +109,9 @@ class Main extends PluginBase implements Listener
             }
         }
         else{
-            $this->getLogger()->info("Please execute this command ingame");
+            $this->getLogger()->info("Please execute this command in-game");
         }
 
-    }
-
-
-    /*
-     * TODO: Double chest should be detected and locked.
-     */
-    public function getPairedChest(PlayerInteractEvent $event){
-        $chest = $event->getBlock();
-        $chest_tile = $event->getPlayer()->getLevel()->getTile($chest);
-        if($chest_tile instanceof Chest){
-            if($chest_tile->isPaired()){
-                $chest_tile->getPair();
-            }
-        }
     }
 
 
@@ -177,7 +163,7 @@ class Main extends PluginBase implements Listener
             else{
                 if($this->isLockedDown($event->getBlock(), $event->getItem())){
                     $event->setCancelled();
-                    $player->sendPopup("§4The door is locked.");
+                    $player->sendPopup("§4The block is locked.");
                 }
             }
 
@@ -193,7 +179,8 @@ class Main extends PluginBase implements Listener
                     $block = $event->getPlayer()->getLevel()->getBlock($chest);
                     if($block instanceof \pocketmine\block\Chest){
                         if($this->isLockedDown($block, $event->getItem())){
-                            $event->setCancelled("§4This chest is locked.");
+                            $event->setCancelled();
+                            $event->getPlayer()->sendPopup("§4This chest is locked.");
                         }
 
                     }
@@ -280,39 +267,6 @@ class Main extends PluginBase implements Listener
         $stmt->close();
     }
 
-
-    /**
-     * This method is deprecated
-     * @param $event
-     * @param $key_name
-     * @return array|bool
-     */
-    public function isLocked($event, $key_name = null){
-        $item_x = $event->getBlock()->getX();
-        $item_y = $event->getBlock()->getY();
-        $item_z = $event->getBlock()->getZ();
-
-        $result = $this->handle->query("SELECT * FROM doors");
-        $check = false;
-        while($row = $result->fetchArray()){
-            $row_loc = $row["location"];
-            $loc_array = explode(",", $row_loc);
-            $x = (int) $loc_array[0];
-            $y = (int) $loc_array[1];
-            $z = (int) $loc_array[2];
-            if($event->getPlayer()->getLevel()->getName() == $row["world"]){
-                if ($item_x == $x && $item_z == $z) {
-                    if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
-                            if($key_name != $row["door_name"] || $event->getItem()->getId() != $this->itemID){
-                                $check = true;
-                                break;
-                            }
-                    }
-                }
-            }
-        }
-        return $check;
-    }
 
     /**
      * This method uses the Position class and does not require/need the Event instance to be passed.
