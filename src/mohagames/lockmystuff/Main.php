@@ -130,7 +130,8 @@ class Main extends PluginBase implements Listener
      */
     public function aanraking(PlayerInteractEvent $event){
         $player = $event->getPlayer();
-        if ($event->getBlock() instanceof Door){
+        $block = $event->getBlock();
+        if ($block instanceof Door || $block instanceof \pocketmine\block\Chest){
             if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
                 if($this->isLockedDown($event->getBlock()) === false){
@@ -217,11 +218,12 @@ class Main extends PluginBase implements Listener
      * @param BlockBreakEvent $event
      */
     public function DoorBreak(BlockBreakEvent $event){
-        if($event->getBlock() instanceof Door){
+        $block = $event->getBlock();
+        if($block instanceof Door || $block instanceof \pocketmine\block\Chest){
                 if((!$this->isLockedDown($event->getBlock(), $event->getItem()) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
-                    $x = $event->getBlock()->getX();
-                    $y = $event->getBlock()->getY();
-                    $z = $event->getBlock()->getZ();
+                    $x = $block->getX();
+                    $y = $block->getY();
+                    $z = $block->getZ();
                     $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
                     $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
                     $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
