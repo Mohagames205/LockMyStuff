@@ -215,7 +215,7 @@ class Main extends PluginBase implements Listener
     /**
      * @param BlockBreakEvent $event
      */
-    public function breken(BlockBreakEvent $event){
+    public function DoorBreak(BlockBreakEvent $event){
         if(in_array($event->getBlock()->getItemId(), $this->Items)){
                 if((!$this->isLockedDown($event->getBlock(), $event->getItem()) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
                     $x = $event->getBlock()->getX();
@@ -304,6 +304,7 @@ class Main extends PluginBase implements Listener
 
 
     /**
+     * TODO: Update this method to use the Position class and not a random string
      * @param $event
      */
     public function lock($event){
@@ -334,7 +335,9 @@ class Main extends PluginBase implements Listener
         return $result;
     }
 
-
+    /*
+     * TODO: Update this method to require an instance of the Position class
+     */
     public function getLockedID($x, $y, $z, $worldname){
         $result = $this->handle->query("SELECT * FROM doors");
 
