@@ -9,6 +9,8 @@ It is not allowed to remove this reference. Please read the LICENSE.
 
 namespace mohagames\lockmystuff;
 
+use pocketmine\block\Door;
+use pocketmine\block\IronDoor;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\level\Position;
@@ -36,7 +38,6 @@ use SQLite3;
 
 class Main extends PluginBase implements Listener
 {
-    private $Items = array(ItemIds::IRON_DOOR, ItemIds::CHEST, ItemIds::IRON_TRAPDOOR);
     private $lockSession = array();
     private $handle;
     private $unlockSession = array();
@@ -129,7 +130,7 @@ class Main extends PluginBase implements Listener
      */
     public function aanraking(PlayerInteractEvent $event){
         $player = $event->getPlayer();
-        if (in_array($event->getBlock()->getItemId(), $this->Items)){
+        if ($event->getBlock() instanceof Door){
             if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
                 if($this->isLockedDown($event->getBlock()) === false){
@@ -216,7 +217,7 @@ class Main extends PluginBase implements Listener
      * @param BlockBreakEvent $event
      */
     public function DoorBreak(BlockBreakEvent $event){
-        if(in_array($event->getBlock()->getItemId(), $this->Items)){
+        if($event->getBlock() instanceof Door){
                 if((!$this->isLockedDown($event->getBlock(), $event->getItem()) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
                     $x = $event->getBlock()->getX();
                     $y = $event->getBlock()->getY();
