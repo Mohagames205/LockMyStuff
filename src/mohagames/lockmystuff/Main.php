@@ -146,7 +146,7 @@ class Main extends PluginBase implements Listener
         if (in_array($event->getBlock()->getItemId(), $this->Items)){
             if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
-                if($this->isLocked($event) === false){
+                if($this->isLockedDown($event->getBlock()) === false){
                     $item = ItemFactory::get($this->itemID);
                     $item->clearCustomName();
                     $item->setCustomName($this->lockSession[$player->getName()]);
@@ -175,8 +175,7 @@ class Main extends PluginBase implements Listener
                 $event->getPlayer()->sendMessage("§3The name of the locked item is: §b$name");
             }
             else{
-                $key_name = $event->getItem()->getCustomName();
-                if($this->isLocked($event, $key_name)){
+                if($this->isLockedDown($event->getBlock(), $event->getItem())){
                     $event->setCancelled();
                     $player->sendPopup("§4The door is locked.");
                 }
@@ -231,9 +230,7 @@ class Main extends PluginBase implements Listener
      */
     public function breken(BlockBreakEvent $event){
         if(in_array($event->getBlock()->getItemId(), $this->Items)){
-            if($this->isLocked($event)){
-                $key_name = $event->getItem()->getCustomName();
-                if((!$this->isLocked($event, $key_name) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
+                if((!$this->isLockedDown($event->getBlock(), $event->getItem()) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
                     $x = $event->getBlock()->getX();
                     $y = $event->getBlock()->getY();
                     $z = $event->getBlock()->getZ();
@@ -249,8 +246,6 @@ class Main extends PluginBase implements Listener
                     $event->getPlayer()->sendPopup("§4You cannot break this door!");
                 }
             }
-
-        }
 
     }
 
@@ -325,7 +320,7 @@ class Main extends PluginBase implements Listener
      *  @param $item
      *  @return array|bool
      */
-    public function isLockedDown(Position $position, Item $item){
+    public function isLockedDown(Position $position, Item $item = null){
         $item_x = $position->getX();
         $item_y = $position->getY();
         $item_z = $position->getZ();
@@ -362,7 +357,7 @@ class Main extends PluginBase implements Listener
         $item_x = $event->getBlock()->getX();
         $item_y = $event->getBlock()->getY();
         $item_z = $event->getBlock()->getZ();
-        if(!$this->isLocked($event)){
+        if(!$this->isLockedDown($event->getBlock())){
             $location = "$item_x, $item_y, $item_z";
             $world = $event->getPlayer()->getLevel()->getName();
             $door_name = $this->lockSession[$player->getName()];
