@@ -131,7 +131,6 @@ class Main extends PluginBase implements Listener
     public function aanraking(PlayerInteractEvent $event){
         $player = $event->getPlayer();
         $block = $event->getBlock();
-        var_dump($block);
         if ($block instanceof Door || $block instanceof \pocketmine\block\Chest){
             if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
