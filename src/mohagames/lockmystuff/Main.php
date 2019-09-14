@@ -11,6 +11,7 @@ namespace mohagames\lockmystuff;
 
 use pocketmine\block\Door;
 use pocketmine\block\IronDoor;
+use pocketmine\block\Trapdoor;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\level\Position;
@@ -131,7 +132,7 @@ class Main extends PluginBase implements Listener
     public function aanraking(PlayerInteractEvent $event){
         $player = $event->getPlayer();
         $block = $event->getBlock();
-        if ($block instanceof Door || $block instanceof \pocketmine\block\Chest){
+        if ($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor){
             if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
                 if($this->isLockedDown($event->getBlock()) === false){
@@ -219,7 +220,7 @@ class Main extends PluginBase implements Listener
      */
     public function DoorBreak(BlockBreakEvent $event){
         $block = $event->getBlock();
-        if($block instanceof Door || $block instanceof \pocketmine\block\Chest){
+        if($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor){
                 if((!$this->isLockedDown($event->getBlock(), $event->getItem()) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
                     $x = $block->getX();
                     $y = $block->getY();
