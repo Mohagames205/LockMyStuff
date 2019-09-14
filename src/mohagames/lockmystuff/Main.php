@@ -11,7 +11,10 @@ namespace mohagames\lockmystuff;
 
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\level\Position;
+use pocketmine\math\Vector3;
 use pocketmine\tile\Chest;
+use pocketmine\updater\UpdateCheckTask;
 use pocketmine\utils\TextFormat;
 use pocketmine\Server;
 use pocketmine\Player;
@@ -178,6 +181,25 @@ class Main extends PluginBase implements Listener
                     $player->sendPopup("§4The door is locked.");
                 }
             }
+
+        }
+    }
+
+    public function chestTouch(PlayerInteractEvent $event){
+        if($event->getBlock()->getItemId() == ItemIds::CHEST){
+            $tile =  $event->getPlayer()->getLevel()->getTile($event->getBlock());
+            if($tile instanceof Chest){
+                if($tile->isPaired()){
+                    $chest = $tile->getPair();
+                    $block = $event->getPlayer()->getLevel()->getBlock($chest);
+                    if($block instanceof \pocketmine\block\Chest){
+                        if($this->isLockedDown($block, $event->getItem())){
+                            $event->setCancelled("§4This chest is locked.");
+                        }
+
+                    }
+                }
+            }
         }
     }
 
@@ -265,6 +287,7 @@ class Main extends PluginBase implements Listener
 
 
     /**
+     * This method is deprecated
      * @param $event
      * @param $key_name
      * @return array|bool
@@ -296,7 +319,38 @@ class Main extends PluginBase implements Listener
         return $check;
     }
 
+    /**
+     * This method uses the Position class and does not require/need the Event instance to be passed.
+     *  @param $position
+     *  @param $item
+     *  @return array|bool
+     */
+    public function isLockedDown(Position $position, Item $item){
+        $item_x = $position->getX();
+        $item_y = $position->getY();
+        $item_z = $position->getZ();
 
+        $result = $this->handle->query("SELECT * FROM doors");
+        $check = false;
+        while($row = $result->fetchArray()){
+            $row_loc = $row["location"];
+            $loc_array = explode(",", $row_loc);
+            $x = (int) $loc_array[0];
+            $y = (int) $loc_array[1];
+            $z = (int) $loc_array[2];
+            if($position->getLevel()->getName() == $row["world"]){
+                if ($item_x == $x && $item_z == $z) {
+                    if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
+                        if($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID){
+                            $check = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return $check;
+    }
 
 
 
