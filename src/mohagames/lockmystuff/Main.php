@@ -11,6 +11,7 @@ namespace mohagames\lockmystuff;
 
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\tile\Chest;
 use pocketmine\utils\TextFormat;
 use pocketmine\Server;
 use pocketmine\Player;
@@ -108,6 +109,20 @@ class Main extends PluginBase implements Listener
             $this->getLogger()->info("Please execute this command ingame");
         }
 
+    }
+
+
+    /*
+     * TODO: Double chest should be detected and locked.
+     */
+    public function getPairedChest(PlayerInteractEvent $event){
+        $chest = $event->getBlock();
+        $chest_tile = $event->getPlayer()->getLevel()->getTile($chest);
+        if($chest_tile instanceof Chest){
+            if($chest_tile->isPaired()){
+                $chest_tile->getPair();
+            }
+        }
     }
 
 
