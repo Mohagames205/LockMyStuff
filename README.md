@@ -11,3 +11,6 @@ This plugin let's you lock your trapdoors, doors and chests
 ### Suggestions or need help?
 Please open an issue on Github with your suggestion/question.
 
+[![](https://img.shields.io/github/issues/mohagames205/LockMyStuff?style=for-the-badge)](https://github.com/mohagames205/LockMyStuff/issues)
+
+
