@@ -44,14 +44,30 @@ class Main extends PluginBase implements Listener
     private $config;
     private $itemID;
     private $infoSession = array();
+    private $message;
 
     public function onEnable(): void
     {
-        $this->config = new Config($this->getDataFolder() . "config.yml", Config::YAML, array("key-item" => ItemIds::TRIPWIRE_HOOK));
+        $default_messages = [
+            "key-received" => "§dYou received the key succesfully! Please check your inventory.",
+            "touch-lock-info" => "§cPlease touch the item you want to lock.",
+            "missing-name" => "§cMissing item-name! Usage: /lock [name]",
+            "lock-removed" => "§aThe block has been unlocked",
+            "touch-unlock-info" => "§aPlease touch the item you want to unlock.",
+            "makekey-missing-argument" => "§aMissing key-name! Usage: /makekey [name]",
+            "touch-info" => "§aPlease touch the item you want info about.",
+            "locked-successfully" => "§aThe door has been locked successfully!",
+            "block-already-locked" => "§cThis block is already locked!",
+            "block-locked" => "§4This block is locked.",
+            "block-deny-break" => "§4You can't break this block"
+        ];
+
+        $this->config = new Config($this->getDataFolder() . "config.yml", Config::YAML, array("version" => "1.0.0", "key-item" => ItemIds::TRIPWIRE_HOOK, "messages" => $default_messages));
         $this->itemID = $this->config->get("key-item");
         $this->handle = new SQLite3($this->getDataFolder() . "doors.db");
         $this->handle->query("CREATE TABLE IF NOT EXISTS doors(door_id INTEGER PRIMARY KEY AUTOINCREMENT,door_name TEXT,location TEXT, world TEXT)");
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        $this->message = $this->config->get("messages");
     }
 
     /**
@@ -68,9 +84,9 @@ class Main extends PluginBase implements Listener
                 case "lock":
                     if (isset($args[0])) {
                         $this->lockSession[$sender->getName()] = $args[0];
-                        $sender->sendMessage("§cPlease touch the item you want to lock.");
+                        $sender->sendMessage($this->message["touch-lock-info"]);
                     } else {
-                        $sender->sendMessage("§cMissing item-name! usage: ". $command->getUsage());
+                        $sender->sendMessage($this->message["missing-name"]);
 
                     }
 
@@ -79,11 +95,11 @@ class Main extends PluginBase implements Listener
                 case "unlock":
                     if(isset($args[0])){
                         $this->unlock($args[0]);
-                        $sender->sendMessage("§aThe lock has been removed!");
+                        $sender->sendMessage($this->message["lock-removed"]);
                     }
                     else{
                         $this->unlockSession[$sender->getName()] = true;
-                        $sender->sendMessage("§aPlease touch the item you want to unlock.");
+                        $sender->sendMessage($this->message["touch-unlock-info"]);
 
                     }
                     return true;
@@ -95,13 +111,13 @@ class Main extends PluginBase implements Listener
                         $item->setCustomName($args[0]);
                         $sender->getInventory()->addItem($item);
                     } else {
-                        $sender->sendMessage("§4Missing argument, please specify the name of the item that has to be locked. usage: " . $command->getUsage());
+                        $sender->sendMessage($this->message["makekey-missing-argument"]);
                     }
                     return true;
 
                 case "lockedinfo":
                     $this->infoSession[$sender->getName()] = true;
-                    $sender->sendMessage("§aPlease touch the item you want info about.");
+                    $sender->sendMessage($this->message["touch-info"]);
                     return true;
 
                 default:
@@ -133,21 +149,21 @@ class Main extends PluginBase implements Listener
         if ($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor){
             if (isset($this->lockSession[$player->getName()])){
                 //sleutel in inventory plaatsen
-                if($this->isLockedDown($event->getBlock()) === false){
+                if($this->isLockedDown($event->getBlock(), $event->getItem()) === null){
                     $item = ItemFactory::get($this->itemID);
                     $item->clearCustomName();
                     $item->setCustomName($this->lockSession[$player->getName()]);
                     $player->getInventory()->addItem($item);
-                    $player->sendPopup("§dYou received the key succesfully! Please check your inventory.");
+                    $player->sendPopup($this->message["key-received"]);
                     //deur blijft closed
                     $event->setCancelled();
-                    $player->sendMessage("§aThe door has been locked succesfully!");
+                    $player->sendMessage($this->message["locked-successfully"]);
                     $this->lock($event);
                 }
                 else{
                     $event->setCancelled();
                     unset($this->lockSession[$player->getName()]);
-                    $player->sendMessage("§cThis door is already locked!");
+                    $player->sendMessage($this->message["block-already-locked"]);
                 }
 
             }
@@ -162,9 +178,12 @@ class Main extends PluginBase implements Listener
                 $event->getPlayer()->sendMessage("§3The name of the locked item is: §b$name");
             }
             else{
-                if($this->isLockedDown($event->getBlock(), $event->getItem())){
+                if($player->hasPermission("lms.bypass")){
+                    return;
+                }
+                elseif($this->isLockedDown($event->getBlock(), $event->getItem())){
                     $event->setCancelled();
-                    $player->sendPopup("§4The block is locked.");
+                    $player->sendPopup($this->message["block-locked"]);
                 }
             }
 
@@ -179,9 +198,9 @@ class Main extends PluginBase implements Listener
                     $chest = $tile->getPair();
                     $block = $event->getPlayer()->getLevel()->getBlock($chest);
                     if($block instanceof \pocketmine\block\Chest){
-                        if($this->isLockedDown($block, $event->getItem())){
+                        if($this->isLockedDown($block, $event->getItem())) {
                             $event->setCancelled();
-                            $event->getPlayer()->sendPopup("§4This chest is locked.");
+                            $event->getPlayer()->sendPopup($this->message["block-locked"]);
                         }
 
                     }
@@ -207,7 +226,7 @@ class Main extends PluginBase implements Listener
                 $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
                 $stmt->execute();
                 $stmt->close();
-                $player->sendMessage("§aThe door has been unlocked!");
+                $player->sendMessage($this->message["lock-removed"]);
                 unset($this->unlockSession[$player->getName()]);
             }
         }
@@ -219,23 +238,24 @@ class Main extends PluginBase implements Listener
     public function DoorBreak(BlockBreakEvent $event){
         $block = $event->getBlock();
         if($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor){
-                if((!$this->isLockedDown($event->getBlock(), $event->getItem()) && $event->getItem()->getId() == $this->itemID) || $event->getPlayer()->hasPermission("lms.break")){
-                    $x = $block->getX();
-                    $y = $block->getY();
-                    $z = $block->getZ();
-                    $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
-                    $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
-                    $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
-                    $stmt->execute();
-                    $stmt->close();
-                    $event->getPlayer()->sendMessage("§aThe door has been unlocked!");
-                }
-                else{
-                    $event->setCancelled();
-                    $event->getPlayer()->sendPopup("§4You cannot break this door!");
+                $door_status = $this->isLockedDown($event->getBlock(), $event->getItem());
+                if($door_status !== null) {
+                    if(!$door_status || $event->getPlayer()->hasPermission("lms.break")) {
+                        $x = $block->getX();
+                        $y = $block->getY();
+                        $z = $block->getZ();
+                        $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
+                        $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
+                        $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
+                        $stmt->execute();
+                        $stmt->close();
+                        $event->getPlayer()->sendMessage($this->message["lock-removed"]);
+                    } else {
+                        $event->setCancelled();
+                        $event->getPlayer()->sendPopup($this->message["block-deny-break"]);
+                    }
                 }
             }
-
     }
 
     /**
@@ -271,12 +291,11 @@ class Main extends PluginBase implements Listener
 
 
     /**
-     * This method uses the Position class and does not require/need the Event instance to be passed.
-     *  @param $position
-     *  @param $item
-     *  @return array|bool
+     * @param Position $position
+     * @param Item $item
+     * @return bool|null
      */
-    public function isLockedDown(Position $position, Item $item = null){
+    public function isLockedDown(Position $position, Item $item) : ?bool{
         $item_x = $position->getX();
         $item_y = $position->getY();
         $item_z = $position->getZ();
@@ -289,20 +308,24 @@ class Main extends PluginBase implements Listener
             $x = (int) $loc_array[0];
             $y = (int) $loc_array[1];
             $z = (int) $loc_array[2];
-            if($position->getLevel()->getName() == $row["world"]){
-                if ($item_x == $x && $item_z == $z) {
-                    if (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) {
-                        if($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID){
-                            $check = true;
-                            break;
-                        }
+            if (($item_x == $x && $item_z == $z) && (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) && $position->getLevel()->getName() == $row["world"]){
+                    if($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID){
+                        //If the door exists in the database but it's locked, then "true" will be returned.
+                        $check = true;
+                        break;
                     }
-                }
+                    else{
+                        //If the door exists in the database and it's locked, but the user has the key then false will be returned.
+                        $check = false;
+                    }
+            }
+            else{
+                //NULL is returned if the door is not in the database
+                $check = null;
             }
         }
         return $check;
     }
-
 
 
     /**
@@ -314,7 +337,7 @@ class Main extends PluginBase implements Listener
         $item_x = $event->getBlock()->getX();
         $item_y = $event->getBlock()->getY();
         $item_z = $event->getBlock()->getZ();
-        if(!$this->isLockedDown($event->getBlock())){
+        if($this->isLockedDown($event->getBlock(), $event->getItem()) == null){
             $location = "$item_x, $item_y, $item_z";
             $world = $event->getPlayer()->getLevel()->getName();
             $door_name = $this->lockSession[$player->getName()];

@@ -19,20 +19,28 @@ commands:
     description: Make a key!
     usage: /makekey <doorname>
     permission: lms.makekey
-
+  lockedinfo:
+    description: Gives info aboutt the touched locked item
+    permission: lms.lockedinfo
 
 permissions:
   lms:
     children:
       lms.lock:
         description: Allows the user to lock a door.
-        default: OP
+        default: op
       lms.unlock:
         description: Allows the user to use the /unlock command.
-        default: OP
+        default: op
       lms.makekey:
         description: Allows the user to make a key for any door.
-        default: OP
+        default: op
       lms.break:
         description: Allows the user to break a locked door.
-        default: OP
+        default: op
+      lms.bypass:
+        description: This allows the user to open every door
+        default: op
+      lms.lockedinfo:
+        description: This allows the user to use the lockedinfo command
+        default: true
