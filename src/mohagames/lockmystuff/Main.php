@@ -301,7 +301,7 @@ class Main extends PluginBase implements Listener
         $item_z = $position->getZ();
 
         $result = $this->handle->query("SELECT * FROM doors");
-        $check = false;
+        $check = null;
         while($row = $result->fetchArray()){
             $row_loc = $row["location"];
             $loc_array = explode(",", $row_loc);
@@ -317,6 +317,7 @@ class Main extends PluginBase implements Listener
                     else{
                         //If the door exists in the database and it's locked, but the user has the key then false will be returned.
                         $check = false;
+                        break;
                     }
             }
             else{
