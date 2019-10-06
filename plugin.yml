@@ -43,4 +43,4 @@ permissions:
         default: op
       lms.lockedinfo:
         description: This allows the user to use the lockedinfo command
-        default: true
+        default: op
