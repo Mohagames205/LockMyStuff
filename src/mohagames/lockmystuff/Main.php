@@ -14,7 +14,7 @@ use pocketmine\block\IronDoor;
 use pocketmine\block\Trapdoor;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
-use pocketmine\item\StringItem;
+
 use pocketmine\level\Position;
 use pocketmine\math\Vector3;
 use pocketmine\tile\Chest;
