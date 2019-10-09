@@ -14,6 +14,7 @@ use pocketmine\block\IronDoor;
 use pocketmine\block\Trapdoor;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\item\StringItem;
 use pocketmine\level\Position;
 use pocketmine\math\Vector3;
 use pocketmine\tile\Chest;
@@ -51,6 +52,8 @@ class Main extends PluginBase implements Listener
         $default_messages = [
             "key-received" => "§dYou received the key succesfully! Please check your inventory.",
             "touch-lock-info" => "§cPlease touch the item you want to lock.",
+            "cant-place-key" => "§cIt looks like you were trying to place a key",
+            "outdated-key" => "§cIt looks like your key is outdated use /makekey {keyname} to create a new key.",
             "missing-name" => "§cMissing item-name! Usage: /lock [name]",
             "lock-removed" => "§aThe block has been unlocked",
             "touch-unlock-info" => "§aPlease touch the item you want to unlock.",
@@ -77,7 +80,7 @@ class Main extends PluginBase implements Listener
      * @param array $args
      * @return bool
      */
-    public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool
+    public function onCommand(CommandSender $sender, Command $command, String $label, array $args): bool
     {
         if($sender instanceof Player){
             switch ($command->getName()) {
@@ -134,8 +137,9 @@ class Main extends PluginBase implements Listener
     /**
      * @param BlockPlaceEvent $event
      */
-    public function wirehook(BlockPlaceEvent $event){
-        if($event->getBlock()->getItemId() == $this->itemID){
+    public function keyPlace(BlockPlaceEvent $event){
+        if($event->getBlock()->getItemId() == $this->itemID && $event->getBlock()->getName() != $event->getItem()->getName() && !empty($event->getItem()->getLore())){
+            $event->getPlayer()->sendMessage($this->message["cant-place-key"]);
             $event->setCancelled();
         }
     }
@@ -143,19 +147,23 @@ class Main extends PluginBase implements Listener
     /**
      * @param PlayerInteractEvent $event
      */
-    public function aanraking(PlayerInteractEvent $event){
+    public function basicLock(PlayerInteractEvent $event){
         $player = $event->getPlayer();
         $block = $event->getBlock();
         if ($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor){
             if (isset($this->lockSession[$player->getName()])){
-                //sleutel in inventory plaatsen
+                //Adding key to inventory
                 if($this->isLockedDown($event->getBlock(), $event->getItem()) === null){
                     $item = ItemFactory::get($this->itemID);
                     $item->clearCustomName();
                     $item->setCustomName($this->lockSession[$player->getName()]);
+                    $item->setLore(["Key: ".$this->lockSession[$player->getName()]]);
                     $player->getInventory()->addItem($item);
+
                     $player->sendPopup($this->message["key-received"]);
-                    //deur blijft closed
+
+
+                    //Door locked succesfully
                     $event->setCancelled();
                     $player->sendMessage($this->message["locked-successfully"]);
                     $this->lock($event);
@@ -167,10 +175,11 @@ class Main extends PluginBase implements Listener
                 }
 
             }
-            elseif(isset($this->infoSession[$player->getName()])){
+            else if(isset($this->infoSession[$player->getName()])){
                 $x = $event->getBlock()->getX();
                 $y = $event->getBlock()->getY();
                 $z = $event->getBlock()->getZ();
+
                 $world = $player->getLevel()->getName();
                 $name = $this->getLockedName($x, $y, $z, $world);
                 unset($this->infoSession[$player->getName()]);
@@ -180,6 +189,9 @@ class Main extends PluginBase implements Listener
             else{
                 if($player->hasPermission("lms.bypass")){
                     return;
+                }elseif($this->isLockedDown($event->getBlock(), $event->getItem()) == "outdated"){
+                    $player->sendMessage(str_replace("{keyname}", $event->getItem()->getName(), $this->message["outdated-key"]));
+                    $event->setCancelled();
                 }
                 elseif($this->isLockedDown($event->getBlock(), $event->getItem())){
                     $event->setCancelled();
@@ -235,10 +247,11 @@ class Main extends PluginBase implements Listener
     /**
      * @param BlockBreakEvent $event
      */
-    public function DoorBreak(BlockBreakEvent $event){
+    public function doorBreak(BlockBreakEvent $event){
         $block = $event->getBlock();
         if($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor){
                 $door_status = $this->isLockedDown($event->getBlock(), $event->getItem());
+
                 if($door_status !== null) {
                     if(!$door_status || $event->getPlayer()->hasPermission("lms.break")) {
                         $x = $block->getX();
@@ -309,11 +322,18 @@ class Main extends PluginBase implements Listener
             $y = (int) $loc_array[1];
             $z = (int) $loc_array[2];
             if (($item_x == $x && $item_z == $z) && (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) && $position->getLevel()->getName() == $row["world"]){
-                    if($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID){
+
+
+                    if($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID || $item->getLore() != array("Key: ".$row["door_name"])){
                         //If the door exists in the database but it's locked, then "true" will be returned.
                         $check = true;
                         break;
+                    } else if($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID){
+                        //Checks if user using old key.
+                        $check = "outdated";
+                        break;
                     }
+
                     else{
                         //If the door exists in the database and it's locked, but the user has the key then false will be returned.
                         $check = false;
