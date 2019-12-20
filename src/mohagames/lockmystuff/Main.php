@@ -260,10 +260,10 @@ class Main extends PluginBase implements Listener
     }
 
     /**
-     * @param $x
-     * @param $y
-     * @param $z
-     * @param $worldname
+     * @param int $x
+     * @param int $y
+     * @param int $z
+     * @param string $worldname
      * @return mixed
      */
     public function getLockedName($x, $y, $z, $worldname){
@@ -379,7 +379,6 @@ class Main extends PluginBase implements Listener
                 if ($x == $x_j && $z == $z_j) {
                     if(abs($y - $y_j) <= 1 || abs($y_j - $y) <= 1) {
                         return $row["door_id"];
-                        break;
                     }
                 }
             }
