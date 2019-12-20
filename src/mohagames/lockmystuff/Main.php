@@ -126,6 +126,7 @@ class Main extends PluginBase implements Listener
         }
         else{
             $this->getLogger()->info("Please execute this command in-game");
+            return true;
         }
 
     }
