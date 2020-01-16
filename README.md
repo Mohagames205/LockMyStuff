@@ -1,5 +1,7 @@
 [![](https://poggit.pmmp.io/shield.state/LockMyStuff)](https://poggit.pmmp.io/p/LockMyStuff) [![](https://poggit.pmmp.io/shield.dl.total/LockMyStuff)](https://poggit.pmmp.io/p/LockMyStuff)
 
+# This plugin will be rewritten!
+
 # LockMyStuff
 This plugin let's you lock your trapdoors, doors and chests
 
