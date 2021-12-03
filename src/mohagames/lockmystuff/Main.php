@@ -20,23 +20,22 @@ use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\item\Item;
 use pocketmine\item\ItemFactory;
 use pocketmine\item\ItemIds;
-use pocketmine\level\Position;
-use pocketmine\Player;
+use pocketmine\world\Position;
+use pocketmine\player\Player;
 use pocketmine\plugin\PluginBase;
-use pocketmine\tile\Chest;
+use pocketmine\block\tile\Chest;
 use pocketmine\utils\Config;
 use SQLite3;
 
 
 class Main extends PluginBase implements Listener
 {
-    private $lockSession = array();
-    private $handle;
-    private $unlockSession = array();
-    private $config;
-    private $itemID;
-    private $infoSession = array();
-    private $message;
+    private array $lockSession = array();
+    private SQLite3 $handle;
+    private array $unlockSession = array();
+    private int $itemID;
+    private array $infoSession = array();
+    private array $message;
 
     public function onEnable(): void
     {
@@ -54,12 +53,12 @@ class Main extends PluginBase implements Listener
             "block-deny-break" => "§4You can't break this block"
         ];
 
-        $this->config = new Config($this->getDataFolder() . "config.yml", Config::YAML, array("version" => "1.0.0", "key-item" => ItemIds::TRIPWIRE_HOOK, "messages" => $default_messages));
-        $this->itemID = $this->config->get("key-item");
+        new Config($this->getDataFolder() . "config.yml", Config::YAML, array("version" => "1.0.0", "key-item" => ItemIds::TRIPWIRE_HOOK, "messages" => $default_messages));
+        $this->itemID = $this->getConfig()->get("key-item");
         $this->handle = new SQLite3($this->getDataFolder() . "doors.db");
         $this->handle->query("CREATE TABLE IF NOT EXISTS doors(door_id INTEGER PRIMARY KEY AUTOINCREMENT,door_name TEXT,location TEXT, world TEXT)");
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
-        $this->message = $this->config->get("messages");
+        $this->message = $this->getConfig()->get("messages");
     }
 
     /**
@@ -97,7 +96,7 @@ class Main extends PluginBase implements Listener
 
                 case "makekey":
                     if (isset($args[0])) {
-                        $item = ItemFactory::get($this->itemID);
+                        $item = ItemFactory::getInstance()->get($this->itemID);
                         $item->clearCustomName();
                         $item->setCustomName($args[0]);
                         $sender->getInventory()->addItem($item);
@@ -127,8 +126,8 @@ class Main extends PluginBase implements Listener
      */
     public function wirehook(BlockPlaceEvent $event)
     {
-        if ($event->getBlock()->getItemId() == $this->itemID) {
-            $event->setCancelled();
+        if ($event->getBlock()->asItem()->getId() == $this->itemID) {
+            $event->cancel();
         }
     }
 
@@ -142,36 +141,36 @@ class Main extends PluginBase implements Listener
         if ($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor) {
             if (isset($this->lockSession[$player->getName()])) {
                 //sleutel in inventory plaatsen
-                if ($this->isLockedDown($event->getBlock(), $event->getItem()) === null) {
-                    $item = ItemFactory::get($this->itemID);
+                if ($this->isLockedDown($event->getBlock()->getPosition(), $event->getItem()) === null) {
+                    $item = ItemFactory::getInstance()->get($this->itemID);
                     $item->clearCustomName();
                     $item->setCustomName($this->lockSession[$player->getName()]);
                     $player->getInventory()->addItem($item);
                     $player->sendPopup($this->message["key-received"]);
                     //deur blijft closed
-                    $event->setCancelled();
+                    $event->cancel();
                     $player->sendMessage($this->message["locked-successfully"]);
                     $this->lock($event);
                 } else {
-                    $event->setCancelled();
+                    $event->cancel();
                     unset($this->lockSession[$player->getName()]);
                     $player->sendMessage($this->message["block-already-locked"]);
                 }
 
             } elseif (isset($this->infoSession[$player->getName()])) {
-                $x = $event->getBlock()->getX();
-                $y = $event->getBlock()->getY();
-                $z = $event->getBlock()->getZ();
-                $world = $player->getLevel()->getName();
+                $x = $event->getBlock()->getPosition()->getX();
+                $y = $event->getBlock()->getPosition()->getY();
+                $z = $event->getBlock()->getPosition()->getZ();
+                $world = $player->getWorld()->getFolderName();
                 $name = $this->getLockedName($x, $y, $z, $world);
                 unset($this->infoSession[$player->getName()]);
-                $event->setCancelled();
+                $event->cancel();
                 $event->getPlayer()->sendMessage("§3The name of the locked item is: §b$name");
             } else {
                 if ($player->hasPermission("lms.bypass")) {
                     return;
-                } elseif ($this->isLockedDown($event->getBlock(), $event->getItem())) {
-                    $event->setCancelled();
+                } elseif ($this->isLockedDown($event->getBlock()->getPosition(), $event->getItem())) {
+                    $event->cancel();
                     $player->sendPopup($this->message["block-locked"]);
                 }
             }
@@ -181,15 +180,15 @@ class Main extends PluginBase implements Listener
 
     public function chestTouch(PlayerInteractEvent $event)
     {
-        if ($event->getBlock()->getItemId() == ItemIds::CHEST) {
-            $tile = $event->getPlayer()->getLevel()->getTile($event->getBlock());
+        if ($event->getBlock()->asItem()->getId() == ItemIds::CHEST) {
+            $tile = $event->getPlayer()->getWorld()->getTile($event->getBlock()->getPosition());
             if ($tile instanceof Chest) {
                 if ($tile->isPaired()) {
                     $chest = $tile->getPair();
-                    $block = $event->getPlayer()->getLevel()->getBlock($chest);
+                    $block = $event->getPlayer()->getWorld()->getBlock($chest);
                     if ($block instanceof \pocketmine\block\Chest) {
-                        if ($this->isLockedDown($block, $event->getItem())) {
-                            $event->setCancelled();
+                        if ($this->isLockedDown($block->getPosition(), $event->getItem())) {
+                            $event->cancel();
                             $event->getPlayer()->sendPopup($this->message["block-locked"]);
                         }
 
@@ -208,11 +207,11 @@ class Main extends PluginBase implements Listener
         $player = $event->getPlayer();
         if (isset($this->unlockSession[$player->getName()])) {
             if ($this->unlockSession[$player->getName()]) {
-                $event->setCancelled();
-                $x = $event->getBlock()->getX();
-                $y = $event->getBlock()->getY();
-                $z = $event->getBlock()->getZ();
-                $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
+                $event->cancel();
+                $x = $event->getBlock()->getPosition()->getX();
+                $y = $event->getBlock()->getPosition()->getY();
+                $z = $event->getBlock()->getPosition()->getZ();
+                $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getWorld()->getFolderName());
                 $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
                 $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
                 $stmt->execute();
@@ -230,34 +229,34 @@ class Main extends PluginBase implements Listener
     {
         $block = $event->getBlock();
         if ($block instanceof Door || $block instanceof \pocketmine\block\Chest || $block instanceof Trapdoor) {
-            $door_status = $this->isLockedDown($event->getBlock(), $event->getItem());
+            $door_status = $this->isLockedDown($event->getBlock()->getPosition(), $event->getItem());
             if ($door_status !== null) {
                 if (!$door_status || $event->getPlayer()->hasPermission("lms.break")) {
-                    $x = $block->getX();
-                    $y = $block->getY();
-                    $z = $block->getZ();
-                    $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getLevel()->getName());
+                    $x = $block->getPosition()->getX();
+                    $y = $block->getPosition()->getY();
+                    $z = $block->getPosition()->getZ();
+                    $locked_id = $this->getLockedID($x, $y, $z, $event->getPlayer()->getWorld()->getFolderName());
                     $stmt = $this->handle->prepare("DELETE FROM doors WHERE door_id = :locked_id");
                     $stmt->bindParam(":locked_id", $locked_id, SQLITE3_INTEGER);
                     $stmt->execute();
                     $stmt->close();
                     $event->getPlayer()->sendMessage($this->message["lock-removed"]);
                 } else {
-                    $event->setCancelled();
+                    $event->cancel();
                     $event->getPlayer()->sendPopup($this->message["block-deny-break"]);
                 }
             }
         }
 
         if ($block instanceof \pocketmine\block\Chest) {
-            $tile = $event->getPlayer()->getLevel()->getTile($event->getBlock());
+            $tile = $event->getPlayer()->getWorld()->getTile($event->getBlock()->getPosition());
             if ($tile instanceof Chest) {
                 if ($tile->isPaired()) {
                     $chest = $tile->getPair();
-                    $block = $event->getPlayer()->getLevel()->getBlock($chest);
+                    $block = $event->getPlayer()->getWorld()->getBlock($chest);
                     if ($block instanceof \pocketmine\block\Chest) {
-                        if ($this->isLockedDown($block, $event->getItem())) {
-                            $event->setCancelled();
+                        if ($this->isLockedDown($block->getPosition(), $event->getItem())) {
+                            $event->cancel();
                             $event->getPlayer()->sendPopup($this->message["block-deny-break"]);
                         }
                     }
@@ -319,7 +318,7 @@ class Main extends PluginBase implements Listener
             $x = (int)$loc_array[0];
             $y = (int)$loc_array[1];
             $z = (int)$loc_array[2];
-            if (($item_x == $x && $item_z == $z) && (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) && $position->getLevel()->getName() == $row["world"]) {
+            if (($item_x == $x && $item_z == $z) && (abs($item_y - $y) <= 1 || abs($y - $item_y) <= 1) && $position->getWorld()->getFolderName() == $row["world"]) {
                 if ($item->getCustomName() != $row["door_name"] || $item->getId() != $this->itemID) {
                     //If the door exists in the database but it's locked, then "true" will be returned.
                     $check = true;
